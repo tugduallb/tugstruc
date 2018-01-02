@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <script src="jquery.min.js"></script>
+	<title>Sonde config</title>
+	<script>
+		function g(i){return document.getElementById(i);};
+        function cl(c){return document.getElementsByClassName(c);};
+		function p(t,l){if(confirm(t)) window.location=l;};
+		function E(s){return document.createElement(s)};
+		var S="setAttribute",A="appendChild",H="innerHTML",X,wl;
+		function scan(){
+			if(X) return;
+			X=new XMLHttpRequest(),wl=document.getElementById('wl');
+			wl[H]="Scanning...";
+			X.onreadystatechange=function(){
+				if (this.readyState==4&&this.status==200) {
+					X=0;
+					wl[H]="";
+					this.responseText.split("\n").forEach(function (e) {
+						let t=e.split(","), s=t.slice(2).join(',');
+						var d=E('div'),i=E('a'),c=E('a');
+						i[S]('class','s'); c[S]('class','q');
+						i.onclick=function(){g('s').value=s;g('p').focus();};
+						i[A](document.createTextNode(s));
+						c[H]=t[0]+"%"+(parseInt(t[1])?"\uD83D\uDD12":"\u26A0");
+						wl[A](i); wl[A](c);
+						wl[A](document.createElement('br'));
+					});
+				}
+			};
+			X.open("GET","wifi/list",true);
+			X.send();
+		};
+        var xhttp, updateTime;
+        //
+        //
+        //$('#send').click(function(){ configure(refresh,refresh_value); });
+        
+        function configure (){
+            
+            var config = "";
+        
+            for (i=0;i< cl('config').length;i++){
+                //console.log(cl('config')[i].name);
+                //console.log(cl('config')[i].value);
+                if (cl('config')[i].value != ""){
+                    config = "config.json?";
+                    //config = config + "id=" + cl('config')[i].name + "&etat=" + cl('config')[i].value + "&";
+                    config = config + cl('config')[i].name + '=' + cl('config')[i].value + "&";
+
+                
+                    console.log(config);
+                    $.post(config).done(function(data){
+
+                    }).fail(function(err){
+                          console.log("err configure " + JSON.stringify(err));
+                    });
+                }
+            }
+            
+            
+        }
+
+	</script>
+	<style>
+		input {
+			padding:5px;
+			font-size:1em;
+			width:85%;
+			filter:invert(100%);
+		}
+
+		body {
+			text-align:center;
+			font-family:verdana;
+			background-color:black;
+			color:white;
+		}
+
+		a {
+			color:#1fa3ec;
+		}
+
+		button {
+			border:0;
+			border-radius:0.3em;
+			background-color:#1fa3ec;
+			color:#fff;
+			line-height:2.4em;
+			font-size:1.2em;
+			width:90%;
+			display:block;
+		}
+
+		.q {
+			float:right;
+		}
+
+		.s {
+			display:inline-block;
+			width:14em;
+			overflow:hidden;
+			text-overflow:ellipsis;
+			white-space:nowrap;
+		}
+		#wl{
+			line-height:1.5em;
+		}
+	</style>
+</head>
+
+<body>
+	<div style='text-align:left;display:inline-block;width:320px;padding:5px'>
+		
+        <input class='config' id='refresh' name='refresh' length=32 placeholder='refresh every min'>
+        <br>
+        <input class='config' id='offset' name='offset' length=32 placeholder='offset temperature'>
+        <br>
+        <button id='send' onclick="configure()">configure</button>
+		<br>
+		<a href="/">Home</a>
+	</div>
+</body>
+
+</html>
