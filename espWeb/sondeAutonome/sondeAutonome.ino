@@ -29,11 +29,14 @@ SPIFFS-served REST API example for PersWiFiManager v3.0
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <NtpClientLib.h>
+#include <PubSubClient.h>
 
-#define DEVICE_NAME "papa"
+#define DEVICE_NAME "tugdutruc"
 #define ONE_WIRE_BUS D3 // D1
 #define HISTORY_FILE "/history.json"
 #define CONFIG_FILE "/config.json"
+
+#define SLEEP_DELAY_IN_SECONDS  30
 
 //server objects
 SPIFFSReadServer server(80);
@@ -51,6 +54,10 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature DS18B20(&oneWire);
 char temperatureCString[6];
 char temperatureFString[6];
+//char temperatureString[6];
+String temp_str;
+char temp[5];
+
 
 StaticJsonBuffer<10000> jsonBuffer;      // Buffer static contenant le JSON courant - Current JSON static buffer
 JsonObject& root = jsonBuffer.createObject();
@@ -64,11 +71,41 @@ JsonObject& conf = jsonBufferConf.createObject();
 
 char json[10000]; 
 char jsonConf[1000];                   // Buffer pour export du JSON - JSON export buffer
-long intervalHist = 1000;  // 12 mesures / heure
+long intervalHist = 60000;  // 12 mesures / heure
 unsigned long previousMillis = intervalHist;  // Dernier point enregistré dans l'historique 
 unsigned int offsetThermometer = 0; // offset to apply to temperature
 int signe_offset = 0; // 0 = positif
 
+//MQTT
+char* mqttserver = "192.168.2.154";
+char* topic = "sensor/";
+const char* mqtt_username = "";
+const char* mqtt_password = "";
+
+WiFiClient wifiClient;
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+}
+
+PubSubClient client(mqttserver, 1883, callback, wifiClient);
+
+String macToStr(const uint8_t* mac)
+{
+  String result;
+  for (int i = 0; i < 6; ++i) {
+    result += String(mac[i], 16);
+    if (i < 5)
+      result += ':';
+  }
+  return result;
+}
 
 void setup() {
   DEBUG_BEGIN; //for terminal debugging
@@ -98,6 +135,7 @@ void setup() {
     DEBUG_PRINT("wifi connected");
     DEBUG_PRINT(WiFi.localIP());
     EasySSDP::begin(server);
+    publish_data();
   });
   //...or AP mode is started
   persWM.onAp([](){
@@ -110,11 +148,10 @@ void setup() {
     Serial.println("SPIFFS Mount failed");        // Problème avec le stockage SPIFFS - Serious problem with SPIFFS 
   } else { 
     Serial.println("SPIFFS Mount succesfull");
+    loadConfig();
     loadHistory();
   }
   delay(50);
-  loadConfig();
-  loadHistory();
   //sets network name for AP mode
   persWM.setApCredentials(DEVICE_NAME);
   //persWM.setApCredentials(DEVICE_NAME, "password"); optional password
@@ -144,7 +181,7 @@ void setup() {
     //build json object of program data
     StaticJsonBuffer<200> jsonBuffer;
     JsonObject &jsonAP = jsonBuffer.createObject();
-    t = getTemperature();
+    //t = getTemperature();
     jsonAP["x"] = x;
     jsonAP["y"] = y;
 
@@ -161,7 +198,7 @@ void setup() {
     //build json object of program data
     StaticJsonBuffer<200> jsonBuffer;
     JsonObject &jsonAP = jsonBuffer.createObject();
-    t = getTemperature();
+    //t = getTemperature();
       
     String json_now = "{\"temp\":\"" + String(getTemperature()) + "\",";
     json_now += "\"timestamp\":\"" + String(NTP.getTime()) + "\"}";
@@ -177,6 +214,7 @@ void setup() {
 
 
   server.begin();
+
   DEBUG_PRINT("setup complete.");
 } //void setup
 
@@ -234,7 +272,7 @@ void loadConfig(){
   char v[100];
   File file = SPIFFS.open(CONFIG_FILE, "r");
   if (!file){
-    Serial.println("Aucun config existe");
+    Serial.println("Aucune config existe");
   } else {
     size_t size = file.size();
     if ( size == 0 ) {
@@ -246,7 +284,7 @@ void loadConfig(){
       if (!conf.success()) {
         Serial.println("Impossible de lire le JSON - Impossible to read JSON file");
       } else {
-        Serial.println("config charge ");
+        Serial.println("config loaded ");
         conf.prettyPrintTo(Serial);  
         
         if (conf.containsKey("refresh"))
@@ -326,7 +364,7 @@ void loadHistory(){
       if (!root.success()) {
         Serial.println("Impossible de lire le JSON - Impossible to read JSON file");
       } else {
-        Serial.println("Historique charge - History loaded");
+        Serial.println("History loaded");
         //root.prettyPrintTo(Serial);  
         root.printTo(json, sizeof(json));
         Serial.println("json loaded");
@@ -376,7 +414,42 @@ float getTemperature() {
     return tempC;
       
   }
-  
+
+void publish_data()
+{
+	char buf[15];
+	sprintf(buf, "%d.%d.%d.%d", WiFi.localIP()[0], WiFi.localIP()[1], WiFi.localIP()[2], WiFi.localIP()[3] );
+
+		String topic = "sensor/"+ String((char*) buf) +"/temp";
+		String clientName;
+		  clientName += String(WiFi.localIP());
+		  uint8_t mac[6];
+		  WiFi.macAddress(mac);
+		  clientName += macToStr(mac);
+
+		if (client.connect((char*) clientName.c_str())) {
+			Serial.println("Connected to MQTT broker");
+			//Serial.print("Topic is: ");
+			//Serial.println(topic);
+		  }
+		  else {
+			Serial.println("MQTT connect failed");
+			Serial.println("Will reset and try again...");
+			//abort();
+		  }
+	if (client.connected()){
+	temp_str = String(getTemperature()); //converting ftemp (the float variable above) to a string
+	temp_str.toCharArray(temp, temp_str.length() + 1); //packaging up the data to publish to mqtt whoa...
+	client.publish((char*) topic.c_str(), temp); //money shot
+	Serial.print(topic);Serial.print(" : ");Serial.println(temp);
+
+
+	  }
+	else Serial.println("MQTT fail to connect");
+	delay(1000);
+	ESP.deepSleep(SLEEP_DELAY_IN_SECONDS * 1000000, WAKE_RF_DEFAULT);
+	delay(5000);
+}
   
 void calcStat(){
   float statTemp[7] = {-999,-999,-999,-999,-999,-999,-999};
@@ -420,7 +493,7 @@ void addPtToHist(){
    // DEBUG_PRINT(NTP.getTime());
     if ( tps > 0 ) {
       timestamp.add(tps);
-      hist_t.add(double_with_n_digits(t, 1));
+      hist_t.add(double_with_n_digits(getTemperature(), 1));
 
       if ( hist_t.size() > sizeHist ) {
        // DEBUG_PRINT("efface anciennes mesures");
@@ -434,12 +507,18 @@ void addPtToHist(){
       root.printTo(json, sizeof(json));
       saveHistory();
       DEBUG_PRINT(json);  
-    }  
-  }
+
+      // MQTT Publish
+      publish_data();
+
+
+    }
   //DEBUG_PRINT("fin");
   //root.prettyPrintTo(Serial);
   //DEBUG_PRINT("---------- fin addPtToHist");
+  }
 }
+
 
 void loop() {
   //in non-blocking mode, handleWiFi must be called in the main loop
@@ -451,6 +530,12 @@ void loop() {
   addPtToHist();
   delay(100);
   
+
+
+    //ESP.deepSleep(SLEEP_DELAY_IN_SECONDS * 1000000, WAKE_RF_DEFAULT);
+    //ESP.deepSleep(10 * 1000, WAKE_NO_RFCAL);
+    //delay(5000);   // wait for deep sleep to happen
+
   //DEBUG_PRINT(millis());
 
   // do stuff with x and y
