@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+     <script src="jquery.min.js"></script>
+   <script src="https://www.gstatic.com/charts/loader.js"></script>
+   
+   <meta http-equiv="refresh" content="600" />
+
+	<title>tugdu sonde</title>
+	<script>
+         var Timer_UdpateMesures;
+      var tab_pane;
+      if (typeof google === 'object') {
+            google.charts.load('current', {packages: ['corechart', 'line', 'bar', 'gauge']});
+            google.charts.setOnLoadCallback(drawChart);
+      } 
+    
+      
+      function drawChart(){
+        // https://developers.google.com/chart/interactive/docs/reference?csw=1#datatable-class
+        var options1 = {
+          title: '°C',
+          legend: 'none',
+          backgroundColor: 'black',
+          
+          vAxes:
+          {
+            0: {viewWindowMode:'explicit',
+                viewWindow:{max:40,min:-10},
+                gridlines: {color: 'transparent'},
+                },
+            1: {viewWindowMode:'explicit',
+                viewWindow:{max:10.25,min:9.75},
+                gridlines: {color: 'transparent'},
+                },
+          },
+          series: 
+          {
+             0: {targetAxisIndex:0},
+             1:{targetAxisIndex:0},
+             2:{targetAxisIndex:1},
+          },
+          hAxis: 
+          {
+            gridlines: {color: 'transparent'},
+          },
+        };
+        
+        // Objets graphiques - Charts objects
+        var chartTemp = new google.visualization.LineChart(document.getElementById('chartTemp'));
+        
+        // Données - Data
+        dataChartTemp = new google.visualization.DataTable();
+        
+        // Gauge Pression Atmospherique - Gauge Atmosph. pressure
+        
+        dataChartTemp.addColumn('datetime', 'Time of Day');
+        dataChartTemp.addColumn('number', 'T in');
+        dataChartTemp.addColumn('number', 'T out');
+        dataChartTemp.addColumn('number', 'Pressure');
+        
+                
+         
+        // Force l'actualisation du graphique au 1er lancement - Force chart update first launch
+        var firstStart = true;
+        updateGraphs();
+        // Actualise à intervalle régulier les graphiques - auto-update charts 
+        //setInterval(updateGraphs, 10000); //60000 MS == 1 minutes
+        
+        function updateGraphs(){     
+          // Uniquement si le panneau des graphs est actif - only if chart panel is active
+          if (true |firstStart ){
+            firstStart = false;
+            $.getJSON('/graph_temp.json', function(json){
+              
+              var _dataT = [];
+              
+              // Data line chart  
+              for ( var i = 0; i < json.timestamp.length; i++ ) {
+                var d = new Date(json.timestamp[i] * 1000);
+                _dataT.push(
+                  [
+                    //[d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes()],
+                    d,
+                    json.temp_in[i],
+                    json.temp_out[i],
+                    json.pressure[i],
+                  ]
+                )
+             }
+
+              dataChartTemp.addRows(_dataT);
+              
+              // Efface les anciennes valeurs - Erase old data
+              //var nbRec = dataChartTemp.getNumberOfRows() - json.timestamp.length;
+              //if ( dataChartTemp.getNumberOfRows() > json.timestamp.length ) {
+                //dataChartTemp.removeRows(0, nbRec );
+              //}
+             
+              
+              // Affiche les graphiques - display charts
+              //gaugePA.draw(dataGaugePA,optionsGauge);
+              chartTemp.draw(dataChartTemp, options1);
+              //barTemp.draw(dataBarTemp, options1);
+              //chartPA.draw(dataChartPA, options2);
+            }).fail(function(err){
+              console.log("err getJSON graph_temp.json "+JSON.stringify(err));
+            });
+          }
+        }    
+      }
+    
+		function g(i){return document.getElementById(i);};
+		function p(t,l){if(confirm(t)) window.location=l;};
+		function E(s){return document.createElement(s)};
+		var S="setAttribute",A="appendChild",H="innerHTML",X,wl;
+		<!-- function scan(){ -->
+			<!-- if(X) return; -->
+			<!-- X=new XMLHttpRequest(),wl=document.getElementById('wl'); -->
+			<!-- wl[H]="Scanning..."; -->
+			<!-- X.onreadystatechange=function(){ -->
+				<!-- if (this.readyState==4&&this.status==200) { -->
+					<!-- X=0; -->
+					<!-- wl[H]=""; -->
+					<!-- this.responseText.split("\n").forEach(function (e) { -->
+						<!-- let t=e.split(","), s=t.slice(2).join(','); -->
+						<!-- var d=E('div'),i=E('a'),c=E('a'); -->
+						<!-- i[S]('class','s'); c[S]('class','q'); -->
+						<!-- i.onclick=function(){g('s').value=s;g('p').focus();}; -->
+						<!-- i[A](document.createTextNode(s)); -->
+						<!-- c[H]=t[0]+"%"+(parseInt(t[1])?"\uD83D\uDD12":"\u26A0"); -->
+						<!-- wl[A](i); wl[A](c); -->
+						<!-- wl[A](document.createElement('br')); -->
+					<!-- }); -->
+				<!-- } -->
+			<!-- }; -->
+			<!-- X.open("GET","wifi/list",true); -->
+			<!-- X.send(); -->
+		<!-- }; -->
+        var xhttp, updateTime;
+        
+        function transmit(f) {
+            if (!xhttp) { //prevent simultaneous requests
+                //g("status").innerHTML = "updating...";
+                xhttp = new XMLHttpRequest();
+                xhttp.open("POST", "/temp");
+                xhttp.send(f ? (new FormData(f)) : "");
+                xhttp.onreadystatechange = function () {
+                    if (xhttp.readyState === XMLHttpRequest.DONE && xhttp.status === 200) {
+                        var data = JSON.parse(xhttp.responseText);
+                        g("x").innerHTML = data.temp+" \u00b0C";
+                        //updateGraphs(data);
+                        //g("y").innerHTML = data.y;
+                        xhttp = null;
+                        //g("status").innerHTML = "";
+                        updateTime = 0;
+                    }
+                }
+            }
+            return false; //prevent form redirect
+        }
+        transmit();
+        //setInterval(function () { g("ut").innerHTML = ++updateTime; }, 1000);
+        setInterval(transmit, 5000); //autoupdate display every 5s
+	</script>
+	<style>
+		input {
+			padding:5px;
+			font-size:1em;
+			width:95%;
+			filter:invert(100%);
+		}
+
+		body {
+			text-align:center;
+			font-family:verdana;
+			background-color:black;
+			color:white;
+		}
+
+		a {
+			color:#1fa3ec;
+		}
+
+		button {
+			border:0;
+			border-radius:0.3em;
+			background-color:#1fa3ec;
+			color:#fff;
+			line-height:2.4em;
+			font-size:1.2em;
+			width:100%;
+			display:block;
+		}
+        h3 {
+			color:#fff;
+			font-size:1em;
+            text-align: center;
+			
+		}
+        span {
+			border:0;
+			border-radius:0.3em;
+			background-color:#1fa3ec;
+			color:#fff;
+			line-height:2.4em;
+			font-size:2em;
+            text-align: center;
+			width:90%;
+			display:block;
+		}
+
+		.q {
+			float:right;
+		}
+
+		.s {
+			display:inline-block;
+			width:14em;
+			overflow:hidden;
+			text-overflow:ellipsis;
+			white-space:nowrap;
+		}
+		#wl{
+			line-height:1.5em;
+		}
+	</style>
+</head>
+
+<body>
+	<div style='text-align:left;display:inline-block;width:320px;padding:5px'>
+        
+        <span id="x"></span>
+        <br>
+        <div class="div" id="chartTemp" style="width: 100%; height: 300px"></div>
+        <br>
+		<a href="/wifi.htm">wifi</a> | 
+        <a href="/param.htm">param</a>
+	</div>
+</body>
+
+</html>

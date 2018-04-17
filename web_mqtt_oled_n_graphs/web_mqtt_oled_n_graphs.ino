@@ -27,17 +27,20 @@ PersWiFiManager persWM(server, dnsServer);
 */
 char ssid[] = "tugwifi";    // your network SSID (name)
 char pass[] = "7tugdual7";  // your network password
-String temp_out;
-String temp_in;
-String temp;
+String temp_out = "--";
+String temp_in = "--";
+String pressure = "--";
+String light_status = "0";
+String mqttvalue;
 WiFiUDP ntpUDP;
-int contrast = 0;
+int contrast = 125;
 int touch_count = 0;
+int touch_sensibilite = 10;
 int menu = 0;
 const char* mqtt_server = "tugdutrucmqttserver";
 const char* mqtt_username = "";
 const char* mqtt_password = "";
-const char* mqtt_topic = "sensors/test/temperature";
+const char* mqtt_topic = "sensors/test//erature";
 // touch sensor
 CapacitiveSensor   cs_4_5 = CapacitiveSensor(14,13);        // 10 megohm resistor between pins 4 & 6, pin 6 is sensor pin, add wire, foil
 
@@ -47,7 +50,9 @@ CapacitiveSensor   cs_4_5 = CapacitiveSensor(14,13);        // 10 megohm resisto
 
 // You can specify the time server pool and the offset, (in seconds)
 // additionaly you can specify the update interval (in milliseconds).
-NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 3600, 60000);
+//NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 3600, 60000);
+NTPClient timeClient(ntpUDP, "0.fr.pool.ntp.org", 7200, 60000);
+//NTPClient timeClient2(ntpUDP, "0.fr.pool.ntp.org", 3600, 60000);
 unsigned int mqttPort = 1883;       // the standard MQTT broker port
 unsigned int max_subscriptions = 30;
 unsigned int max_retained_topics = 30;
@@ -56,24 +61,28 @@ unsigned int max_retained_topics = 30;
 U8G2_SSD1306_64X48_ER_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
 
-long intervalHist = 30000;
-int     sizeHist = 840 ;        // Taille historique (7h x 12pts) - History size = ~3j
+long intervalHist = 900000;
+int     sizeHist = 100 ;        // Taille historique (7h x 12pts) - History size = ~3j
 unsigned long previousMillis = intervalHist;
 
 long intervalDisplayRefersh = 30000;
 unsigned long previousMillisDisp = intervalDisplayRefersh;
 
-StaticJsonBuffer<1000> jsonBuffer;      // Buffer static contenant le JSON courant - Current JSON static buffer
+StaticJsonBuffer<10000> jsonBuffer;      // Buffer static contenant le JSON courant - Current JSON static buffer
 JsonObject& root = jsonBuffer.createObject();
 JsonArray& timestamp = root.createNestedArray("timestamp");
-JsonArray& hist_t = root.createNestedArray("temp");
+JsonArray& hist_t_in = root.createNestedArray("temp_in");
+JsonArray& hist_t_out = root.createNestedArray("temp_out");
+JsonArray& hist_pa = root.createNestedArray("pressure");
 
 StaticJsonBuffer<1000> jsonBufferConf;      // Buffer static contenant le JSON courant - Current JSON static buffer
 JsonObject& conf = jsonBufferConf.createObject();
 // JsonArray& param = conf.createNestedArray("param");
 // JsonArray& value = conf.createNestedArray("value");
 
-char json[100];
+char json[10000];
+
+
 
 
 void data_callback(char* topic, byte* data, unsigned int length) {
@@ -91,21 +100,79 @@ void data_callback(char* topic, byte* data, unsigned int length) {
   Serial.print("' with data '");
   Serial.print(data_str);
   Serial.println("'");
-  temp = String(data_str[0])+String(data_str[1])+String(data_str[2])+String(data_str[3]);
-  if (strcmp( topic, "sensor/192.168.2.115/2c:3a:e8:4e:3c:13/temp")== 0) {
-     temp_out = temp;
+  mqttvalue = "";
+  int one_decimal = 0;
+  for (int i=0;i<length;i++){
+	 mqttvalue += String(data_str[i]);
+  }
+  Serial.print("mqttvalue: ");
+  Serial.println(mqttvalue);
+  //mqttvalue = String(data_str[0])+String(data_str[1])+String(data_str[2])+String(data_str[3]);
+  if (strcmp( topic, "sonde_ext/temp")== 0) {
+     temp_out = mqttvalue;
    }
-   if (strcmp( topic, "sensor/192.168.2.112/5c:cf:7f:34:37:48/temp")== 0) {
-     temp_in = temp;
+   if (strcmp( topic, "sonde_int/temp")== 0) {
+     temp_in = mqttvalue;
    }
-   if (strcmp( topic, "lum")== 0) {
-	   touch_count = 6;
+   if (strcmp( topic, "sonde_int/pressure")== 0) {
+     pressure = mqttvalue;
+   }
+   if (strcmp( topic, "switch/gpio/5")== 0) {
+        light_status = mqttvalue;
       }
+   if (strcmp( topic, "touch")== 0) {
+	   touch_count = mqttvalue.toFloat();
+      }
+
+   if (strcmp( topic, "touch_s")== 0) {
+	   touch_sensibilite = mqttvalue.toFloat();
+         }
+
+   if (strcmp( topic, "histo")== 0) {
+	   sizeHist = mqttvalue.toFloat();
+         }
+
+   if (strcmp( topic, "refresh")== 0) {
+	   intervalHist = mqttvalue.toFloat();
+         }
+
+
+
+
   display_menu(menu);
+
+
 }
 WiFiClient espClient;
 PubSubClient client(mqtt_server,1883,data_callback,espClient);
 
+void addPtToHist(){
+  unsigned long currentMillis = millis();
+
+  if ( currentMillis - previousMillis > intervalHist ) {
+    long int tps = timeClient.getEpochTime();
+    previousMillis = currentMillis;
+    if ((temp_out != "--") ||
+    	(temp_in != "--") ||
+		(pressure != "--")) {
+      timestamp.add(tps);
+      hist_t_in.add(double_with_n_digits(temp_in.toFloat(), 1));
+      hist_t_out.add(double_with_n_digits(temp_out.toFloat(), 1));
+      hist_pa.add(double_with_n_digits(pressure.toFloat()/100, 2));
+
+      if ( hist_t_in.size() > sizeHist ) {
+        timestamp.removeAt(0);
+        hist_t_in.removeAt(0);
+        hist_t_out.removeAt(0);
+        hist_pa.removeAt(0);
+      }
+      delay(100);
+      root.printTo(json, sizeof(json));
+      root.prettyPrintTo(Serial);
+      saveHistory();
+    }
+  }
+}
 String getHourMinute() {
   timeClient.update();
   unsigned long rawTime = timeClient.getEpochTime();
@@ -152,7 +219,7 @@ void oled_display_small(const char* message, int x, int y) {
 void oled_display_in() {
 	u8g2.clearBuffer();
 	u8g2.setFont(u8g2_font_smart_patrol_nbp_tr);
-	u8g2.drawStr(2, 10, "in");
+	u8g2.drawStr(2, 10, "t in");
 	u8g2.setFont(u8g2_font_helvB24_tn );
 	u8g2.drawStr(2, 40, temp_in.c_str());
 	u8g2.sendBuffer();
@@ -160,12 +227,19 @@ void oled_display_in() {
 void oled_display_out() {
 	u8g2.clearBuffer();
 	u8g2.setFont(u8g2_font_smart_patrol_nbp_tr);
-	u8g2.drawStr(2, 10, "out");
+	u8g2.drawStr(2, 10, "t out");
 	u8g2.setFont(u8g2_font_helvB24_tn );
 	u8g2.drawStr(2, 40, temp_out.c_str());
 	u8g2.sendBuffer();
 }
-
+void oled_display_pressure() {
+	u8g2.clearBuffer();
+	u8g2.setFont(u8g2_font_smart_patrol_nbp_tr);
+	u8g2.drawStr(2, 10, "barro");
+	u8g2.setFont(u8g2_font_helvB18_tn );
+	u8g2.drawStr(2, 40, pressure.c_str());
+	u8g2.sendBuffer();
+}
 void sendHistory(){
   server.send(200, "application/json", json);   // Envoi l'historique au client Web - Send history data to the web client
 }
@@ -200,26 +274,7 @@ void saveHistory(){
   root.printTo(historyFile); // Exporte et enregsitre le JSON dans la zone SPIFFS - Export and save JSON object to SPIFFS area
   historyFile.close();
 }
-void addPtToHist(){
-  unsigned long currentMillis = millis();
 
-  if ( currentMillis - previousMillis > intervalHist ) {
-    long int tps = timeClient.getEpochTime();
-    previousMillis = currentMillis;
-    if ( tps > 0 ) {
-      timestamp.add(tps);
-      hist_t.add(double_with_n_digits(temp_out.toFloat(), 1));
-
-      if ( hist_t.size() > sizeHist ) {
-        timestamp.removeAt(0);
-        hist_t.removeAt(0);
-      }
-      delay(100);
-      root.printTo(json, sizeof(json));
-      saveHistory();
-    }
-  }
-}
 
 void setup(void) {
   u8g2.begin();
@@ -238,8 +293,8 @@ void setup(void) {
 
   //optional code handlers to run everytime wifi is connected...
       persWM.onConnect([]() {
-        Serial.print("wifi connected");
-        Serial.print(WiFi.localIP());
+        Serial.print("wifi connected - @IP=");
+        Serial.println(WiFi.localIP());
         EasySSDP::begin(server);
       });
       //...or AP mode is started
@@ -285,7 +340,7 @@ void setup(void) {
         String json_now = "{\"temp\":\"" + String(temp_out) + "\",";
         json_now += "\"timestamp\":\"" + timeClient.getFormattedTime(); + "\"}";
         server.send(200, "application/json", json_now);
-        addPtToHist();
+        //addPtToHist();
         //sendHistory();
 
       }); //server.on temp
@@ -333,6 +388,9 @@ void display_menu(int menu){
 	case 2:
 		oled_display_out();
 		break;
+	case 3:
+		oled_display_pressure();
+		break;
 	default:
 		oled_display();
 	}
@@ -340,7 +398,8 @@ void display_menu(int menu){
 void loop(void) {
 	Serial.print(".");
 
-      long touch =  cs_4_5.capacitiveSensor(30);
+      long touch =  cs_4_5.capacitiveSensor(touch_sensibilite);
+
       if (touch >=0 ){
     	  touch_count ++;
     	  Serial.print("touch: ");
@@ -349,18 +408,28 @@ void loop(void) {
       }
       else
       {
-    	  if (touch_count >=5 ){
+    	  //Serial.print("Touch:");Serial.print(touch);Serial.print(" seuil:");Serial.println(touch_sensibilite);
 
+
+    	  if (touch_count >=6 ){
+    		  if (light_status == "0") {
+    			   client.publish("switch/gpio/5", "1");
+    		   }
+    		   else {
+    			   client.publish("switch/gpio/5", "0");
+    		   }
+    	  }
+    	  else if (touch_count >=3 ){
     	      	  contrast = contrast+125;
     	      	  if (contrast > 250) contrast = 0;
     	      	  Serial.print("contrast : ");
 				  Serial.println(contrast);
     	      	  u8g2.setContrast(contrast);
-			}
-			else if (touch_count >=1){
+    	  }
+    	  else if (touch_count >=1){
 				Serial.print("menu : ");
 				Serial.println(menu);
-			    menu = (menu+1)%3;
+			    menu = (menu+1)%4;
 			    display_menu(menu);
 			}
     	  touch_count = 0;
@@ -385,7 +454,8 @@ void loop(void) {
    	  dnsServer.processNextRequest();
    	  server.handleClient();
 
-   	  addPtToHist();
+
+   	addPtToHist();
 
    	  delay(200);
 

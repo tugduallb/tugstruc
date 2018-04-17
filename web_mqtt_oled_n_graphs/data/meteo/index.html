@@ -1,0 +1,172 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" 
+	"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="robots" content="noindex, nofollow">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta name="apple-mobile-web-app-capable" content="yes">
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+                
+		<title>Météo</title>
+		<link rel="shortcut icon" href="favicon.ico" />
+		<!--BOOTSTRAP-->
+		<link rel="stylesheet" href="css/bootstrap.css">
+		<!--CSS, QUICKLY PUT TOGETHER, BEAR WITH ME-->
+		<link rel="stylesheet" href="css/Site.css">
+		<link rel="stylesheet" href="css/weather.css">
+		<!--CUSTOM FONTS-->
+		<link href='https://fonts.googleapis.com/css?family=Lato' rel='stylesheet' type='text/css'>
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css">
+		<!--JS-->
+		<script src="js/jquery-1.10.2.js"></script>
+		<script src="js/bootstrap.min.js"></script>
+		<!--SweetAlert-->
+		<script src="js/sweetalert.min.js"></script>
+		<link rel="stylesheet" type="text/css" href="css/sweetalert.css">
+		<!--Magical sockets-->
+		<script src="js/socket.io.js"></script>
+		<script src="js/pimatic-socket.js"></script>
+                <meta http-equiv="refresh" content="3600"/>
+	</head>
+	<body>
+	
+		<!-- This is the 'loading' screen that is displayed when connecting to Pimatic-->
+		<div class="container body-content" id="loading">
+			<div class="frontti">
+				<div class="row">
+					<div class="col-md-4">
+						<div class="panel panel-default">
+						</div>
+					</div>
+					<div class="col-md-4">
+						<div class="panel panel-default">
+							<div class="panel-body">
+								<div id="body-message"></div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		
+		<!-- This is the main page with all the columns and rows containing the Pimatic elements -->
+		<div class="container body-content" id="gui" style="display: none;">
+			<div class="frontti">
+				<div class="row">
+				
+<!-- Row 1, Column 1 -->
+					<div class="col-md-4">
+						<div class="panel panel-default">
+							<div class="panel-body">
+								<div id="temps">
+									<h4 class="temp_label" id="Inside">Inside</h4>
+                                                                        <h1 class="temp" id="LivingRoomTemperature">LivingRoomTemperature</h1>
+                                </div>
+							</div>
+						</div>
+					</div>
+					
+<!-- Row 1, Column 2 -->
+					<div class="col-md-4">
+						<div class="panel panel-default">
+							<div class="panel-body">
+								<div class='clock' id="div_horloge"></div>
+								 
+								<script type="text/javascript">
+								window.onload=function() {
+								  horloge('div_horloge');
+								};
+								 
+								function horloge(el) {
+								  if(typeof el=="string") { el = document.getElementById(el); }
+								  function actualiser() {
+								    var date = new Date();
+								    var str = date.getHours();
+								    str += ':'+(date.getMinutes()<10?'0':'')+date.getMinutes();
+								    el.innerHTML = str;
+								  }
+								  actualiser();
+								  setInterval(actualiser,1000);
+								}
+								</script>								
+							</div>
+						</div>
+					</div>
+					
+<!-- Row 1, Column 3 -->
+					<div class="col-md-4">
+						<div class="panel panel-default">
+							<div class="panel-body">
+								<div id="temps">
+									<h4 class="temp_label"id="Outside">Outside</h4>
+                                    					<h1 class="temp" id="OutsideTemperature"></h1>
+                                </div>
+							</div>
+						</div>
+					</div>
+				</div>
+				
+				
+<!-- Row 2, Column 1 -->
+                <div class="row">
+                    <div class="panel-body">
+                    <div id="cont_6185b3f2439636b1f687c86f61a4f0f4"><span id="h_6185b3f2439636b1f687c86f61a4f0f4"><a id="a_6185b3f2439636b1f687c86f61a4f0f4" href="http://www.tameteo.com/meteo_Saint+Victoret-Europe-France-Bouches+du+Rhone--1-25671.html" target="_blank" style="color:#00ABEB;font-family:Roboto;font-size:14px;"></a></span><script type="text/javascript" async src="http://www.tameteo.com/wid_loader/6185b3f2439636b1f687c86f61a4f0f4"></script>
+                    </div></div>
+                </div>
+
+<!-- Row 3, Column 1 -->
+                <div class="row">
+                <!--div class="panel-body">
+                    <!-- Three columns of text below the carousel -->
+                    <script type="text/javascript" src="https://www.windfinder.com/widget/forecast/js/marseille?unit_wave=m&unit_rain=mm&unit_temperature=c&unit_wind=kts&columns=3&days=3&show_day=0&show_pressure=0&show_waves=0&show_temperature=0"></script><noscript><a href='https://www.windfinder.com/forecast/marseille?utm_source=forecast&utm_medium=web&utm_campaign=homepageweather&utm_content=noscript-forecast'>Wind forecast for Marseille-Marignane/Étang Berre</a> provided by <a href='https://www.windfinder.com?utm_source=forecast&utm_medium=web&utm_campaign=homepageweather&utm_content=noscript-logo'>windfinder.com</a></noscript>
+                <!--/div-->
+                </div>
+
+            <div class="row">
+<!-- Row 4, Column 1 -->
+        	<div class="col-md-4">
+			<div class="panel panel-default">
+				<div class="panel-body">
+					<div id="temps">
+						<toto class="power_label" id="Power">Pression</toto>
+                                                <tata class="bottom_value" id="PowerValue"></tata>
+	                                </div>								
+				</div>
+			</div>
+		</div>
+<!-- Row 4, Column 2 -->
+        	<div class="col-md-4">
+			<div class="panel panel-default">
+				<div class="panel-body">
+					<div id="temps">
+						<toto class="piscine_label" id="Piscine">Pool</toto>
+                                                <tata class="bottom_value" id="PiscineTemp"></tata>
+	                                </div>								
+				</div>
+			</div>
+		</div>
+<!-- Row 4, Column 3 -->
+        	<div class="col-md-4">
+			<div class="panel panel-default">
+				<div class="panel-body">
+					<div id="temps">
+						<toto class="gate_label" id="Gate">Gate</toto>
+                                                <tata class="bottom_value" id="GateStatus"></tata>
+	                                </div>								
+								
+				</div>
+			</div>
+		</div>
+	    </div>
+
+
+
+                </div>
+                    
+            </div>
+		</div>
+		<br>
+		<br>
+	</body>
+</html>
